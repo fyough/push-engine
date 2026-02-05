@@ -1,0 +1,5 @@
+m3u_task/playlists/
+*.m3u
+*.xml
+__pycache__/
+.DS_Store
