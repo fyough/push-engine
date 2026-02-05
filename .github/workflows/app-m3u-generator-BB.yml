@@ -1,0 +1,37 @@
+- name: Deploy to BitBucket via SSH
+        env:
+          BITBUCKET_REPO: "BuddyChewChew/live.git"
+        run: |
+          # Prepare upload directory with generated files
+          mkdir -p upload_dir
+          
+          if [ -d "m3u_task/playlists" ]; then
+            cp -r m3u_task/playlists/* ./upload_dir/
+          else
+            echo "Error: playlists directory not found!"
+            exit 1
+          fi
+          
+          cd upload_dir
+          
+          # Initialize a minimal git repo for push
+          git init
+          git config user.name "PushEngine-Bot"
+          git config user.email "engine@push-engine.local"
+          
+          # Stage & commit
+          git add .
+          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
+          
+          # Setup SSH key from GitHub secret
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          
+          # CRITICAL: Change these to bitbucket.org
+          ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
+          
+          # Add remote pointing to Bitbucket
+          git remote add origin git@bitbucket.org:${{ env.BITBUCKET_REPO }}
+          git branch -M master
+          git push origin master --force
