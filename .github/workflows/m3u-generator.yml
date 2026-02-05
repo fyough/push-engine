@@ -1,4 +1,4 @@
-name: M3U Generation Task (to GitFlic)
+name: M3U Generation Task (to Codeberg)
 
 on:
   schedule:
@@ -10,7 +10,7 @@ on:
       - main
     paths:
       - 'm3u_task/**'
-      - '.github/workflows/m3u-generator.yml'
+      - '.github/workflows/m3u-generator.yml'   # Update filename if different
 
 jobs:
   build-and-deploy:
@@ -21,7 +21,7 @@ jobs:
       cancel-in-progress: true
 
     steps:
-      - name: Checkout Push-Engine
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -39,16 +39,13 @@ jobs:
           cd m3u_task
           python generate_playlists.py
 
-      - name: Deploy to GitFlic
+      - name: Deploy to Codeberg via SSH
         env:
-          GF_TOKEN: ${{ secrets.GITFLIC_PUSH_ENGINE_TOKEN }}
-          GF_REPO: "gitflic.ru/buddychewchew/live.git"
-          GF_USER: "buddychewchew"
+          CODEBERG_REPO: "BuddyChewChew/live.git"
         run: |
-          # 1. Prepare a clean folder for upload
+          # Prepare upload directory with generated files
           mkdir -p upload_dir
           
-          # 2. Copy the generated files
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* ./upload_dir/
           else
@@ -58,15 +55,24 @@ jobs:
           
           cd upload_dir
           
-          # 3. Setup temporary git environment
+          # Initialize a minimal git repo for push
           git init
-          git config user.name 'PushEngine-Bot'
-          git config user.email 'engine@push-engine.local'
+          git config user.name "PushEngine-Bot"
+          git config user.email "engine@push-engine.local"
           
-          # 4. Stage and Commit
+          # Stage & commit (skip commit if nothing changed)
           git add .
-          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
+          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit — continuing"
           
-          # 5. Direct push using the token to bypass login redirects
-          # Using the USER:TOKEN@REPO format is the most reliable for GitFlic
-          git push "https://${{ env.GF_USER }}:${{ env.GF_TOKEN }}@${{ env.GF_REPO }}" master --force
+          # Setup SSH key from GitHub secret
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CODEBERG_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          
+          # Add Codeberg to known_hosts to avoid host verification errors
+          ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
+          
+          # Add remote and force-push (overwrites history on master)
+          git remote add origin git@codeberg.org:${{ env.CODEBERG_REPO }}
+          git branch -M master
+          git push origin master --force
