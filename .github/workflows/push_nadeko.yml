@@ -9,7 +9,7 @@ on:
       - main
     paths:
       - 'm3u_task/**'
-      - '.github/workflows/m3u-generator-gitflic.yml'
+      - '.github/workflows/m3u-generator-nadeko.yml'
 
 jobs:
   build-and-deploy:
@@ -40,7 +40,7 @@ jobs:
 
       - name: Deploy to GitFlic via SSH
         env:
-          GITFLIC_REPO: "buddychewchew/live.git"
+          GITFLIC_REPO: "git.nadeko.net/BuddyChewChew/live.git"
         run: |
           mkdir -p upload_dir
           
