@@ -2,7 +2,6 @@ name: Push app-m3u-generator-BB
 
 on:
   schedule:
-    # Runs every day at 3:00 AM UTC
     - cron: '0 3 * * *'
   workflow_dispatch:
   push:
@@ -43,7 +42,6 @@ jobs:
         env:
           BITBUCKET_REPO: "BuddyChewChew/live.git"
         run: |
-          # Prepare upload directory with generated files
           mkdir -p upload_dir
           
           if [ -d "m3u_task/playlists" ]; then
@@ -55,24 +53,21 @@ jobs:
           
           cd upload_dir
           
-          # Initialize a minimal git repo for push
           git init
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           
-          # Stage & commit (skip commit if nothing changed)
           git add .
-          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit — continuing"
+          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           
-          # Setup SSH key from GitHub secret
           mkdir -p ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           
-          # Add Bitbucket to known_hosts to avoid host verification errors
           ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
           
-          # Add remote and force-push (overwrites history on master)
           git remote add origin git@bitbucket.org:${{ env.BITBUCKET_REPO }}
-          git branch -M master
-          git push origin master --force
+          
+          # Changed from master to main to match your Bitbucket default
+          git branch -M main
+          git push origin main --force
