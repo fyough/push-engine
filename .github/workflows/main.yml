@@ -41,8 +41,8 @@ jobs:
         env:
           GF_TOKEN: ${{ secrets.GITFLIC_PUSH_ENGINE_TOKEN }}
           # --- EDIT THESE TWO LINES ---
-          GF_REPO: "gitflic.ru/YOUR_USERNAME/YOUR_REPO_NAME.git"
-          GF_USER: "YOUR_USERNAME"
+          GF_REPO: "gitflic.ru/buddychewchew/live.git"
+          GF_USER: "buddychewchew"
           # ----------------------------
         run: |
           # 1. Create a fresh temporary folder for the upload
