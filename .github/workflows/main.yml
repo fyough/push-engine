@@ -42,14 +42,13 @@ jobs:
       - name: Deploy to GitFlic
         env:
           GF_TOKEN: ${{ secrets.GITFLIC_PUSH_ENGINE_TOKEN }}
-          # These values are now confirmed as correct
           GF_REPO: "gitflic.ru/buddychewchew/live.git"
           GF_USER: "buddychewchew"
         run: |
           # 1. Prepare a clean folder for upload
           mkdir -p upload_dir
           
-          # 2. Copy only the generated .m3u files
+          # 2. Copy the generated files
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* ./upload_dir/
           else
@@ -69,4 +68,5 @@ jobs:
           git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
           
           # 5. Direct push using the token to bypass login redirects
+          # Note: We use the master branch on GitFlic as the destination
           git push "https://${{ env.GF_USER }}:${{ env.GF_TOKEN }}@${{ env.GF_REPO }}" master --force
