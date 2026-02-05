@@ -1,4 +1,4 @@
-name: Push to Codeberg via SSH
+name: Push app-m3u-generator (Codeberg)
 
 on:
   schedule:
