@@ -1,4 +1,4 @@
-name: Push to GitFlic via SSH
+name: Push to nadeko via SSH
 
 on:
   schedule:
