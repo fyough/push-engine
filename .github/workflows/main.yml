@@ -42,10 +42,9 @@ jobs:
       - name: Deploy to GitFlic
         env:
           GF_TOKEN: ${{ secrets.GITFLIC_PUSH_ENGINE_TOKEN }}
-          # --- CHECK THESE TWO VALUES ---
+          # These values are now confirmed as correct
           GF_REPO: "gitflic.ru/buddychewchew/live.git"
           GF_USER: "buddychewchew"
-          # ------------------------------
         run: |
           # 1. Prepare a clean folder for upload
           mkdir -p upload_dir
@@ -69,6 +68,5 @@ jobs:
           git add .
           git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
           
-          # 5. Direct push using the token as the password
-          # We use the token in the URL to bypass the login redirect
+          # 5. Direct push using the token to bypass login redirects
           git push "https://${{ env.GF_USER }}:${{ env.GF_TOKEN }}@${{ env.GF_REPO }}" master --force
