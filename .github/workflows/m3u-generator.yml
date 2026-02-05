@@ -1,4 +1,4 @@
-name: M3U Generation Task (to Codeberg)
+name: Push SSH to GitFlic
 
 on:
   schedule:
