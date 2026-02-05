@@ -1,45 +1,4 @@
-name: M3U Generation Task (to GitFlic)
-
-on:
-  schedule:
-    # Runs every day at 3:00 AM UTC
-    - cron: '0 3 * * *'
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'm3u_task/**'
-      - '.github/workflows/m3u-generator.yml'
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
-
-    steps:
-      - name: Checkout Push-Engine
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 lxml
-
-      - name: Run Playlist Generation
-        run: |
-          cd m3u_task
-          python generate_playlists.py
-
-      - name: Deploy to GitFlic
+- name: Deploy to GitFlic
         env:
           GF_TOKEN: ${{ secrets.GITFLIC_PUSH_ENGINE_TOKEN }}
           GF_REPO: "gitflic.ru/buddychewchew/live.git"
@@ -68,5 +27,5 @@ jobs:
           git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
           
           # 5. Direct push using the token to bypass login redirects
-          # Note: We use the master branch on GitFlic as the destination
+          # This syntax tells the server who you are immediately
           git push "https://${{ env.GF_USER }}:${{ env.GF_TOKEN }}@${{ env.GF_REPO }}" master --force
