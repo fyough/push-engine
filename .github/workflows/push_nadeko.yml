@@ -9,7 +9,7 @@ on:
       - main
     paths:
       - 'm3u_task/**'
-      - '.github/workflows/m3u-generator-nadeko.yml'
+      - '.github/workflows/push_nadeko.yml'
 
 jobs:
   build-and-deploy:
