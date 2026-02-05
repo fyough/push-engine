@@ -1,4 +1,4 @@
-name: M3U Generation Task (to GitFlic via SSH)
+name: Push GitFlic via SSH
 
 on:
   schedule:
