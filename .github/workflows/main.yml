@@ -2,6 +2,7 @@ name: M3U Generation Task (to GitFlic)
 
 on:
   schedule:
+    # Runs every day at 3:00 AM UTC
     - cron: '0 3 * * *'
   workflow_dispatch:
   push:
@@ -14,6 +15,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -40,15 +42,15 @@ jobs:
       - name: Deploy to GitFlic
         env:
           GF_TOKEN: ${{ secrets.GITFLIC_PUSH_ENGINE_TOKEN }}
-          # --- EDIT THESE TWO LINES ---
+          # --- CHECK THESE TWO VALUES ---
           GF_REPO: "gitflic.ru/buddychewchew/live.git"
           GF_USER: "buddychewchew"
-          # ----------------------------
+          # ------------------------------
         run: |
-          # 1. Create a fresh temporary folder for the upload
+          # 1. Prepare a clean folder for upload
           mkdir -p upload_dir
           
-          # 2. Copy only the results from the task folder
+          # 2. Copy only the generated .m3u files
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* ./upload_dir/
           else
@@ -58,14 +60,15 @@ jobs:
           
           cd upload_dir
           
-          # 3. Initialize a clean git environment
+          # 3. Setup temporary git environment
           git init
           git config user.name 'PushEngine-Bot'
           git config user.email 'engine@push-engine.local'
           
-          # 4. Prepare the files
+          # 4. Stage and Commit
           git add .
           git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
           
-          # 5. Direct push using the token (bypasses 'remote origin exists' error)
+          # 5. Direct push using the token as the password
+          # We use the token in the URL to bypass the login redirect
           git push "https://${{ env.GF_USER }}:${{ env.GF_TOKEN }}@${{ env.GF_REPO }}" master --force
