@@ -2,7 +2,6 @@ name: M3U Generation Task (to GitFlic)
 
 on:
   schedule:
-    # Runs every day at 3:00 AM UTC
     - cron: '0 3 * * *'
   workflow_dispatch:
   push:
@@ -15,8 +14,6 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
-    # Prevent multiple runs from overlapping
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -37,46 +34,38 @@ jobs:
 
       - name: Run Playlist Generation
         run: |
-          # Move into the task folder and run the script
           cd m3u_task
           python generate_playlists.py
 
       - name: Deploy to GitFlic
         env:
-          # Using your specific secret name
           GF_TOKEN: ${{ secrets.GITFLIC_PUSH_ENGINE_TOKEN }}
-          
           # --- EDIT THESE TWO LINES ---
-          GF_REPO: "gitflic.ru/buddychewchew/live.git"
-          GF_USER: "buddychewchew"
+          GF_REPO: "gitflic.ru/YOUR_USERNAME/YOUR_REPO_NAME.git"
+          GF_USER: "YOUR_USERNAME"
           # ----------------------------
         run: |
-          # 1. Prepare the temporary deployment folder
-          mkdir deploy_out
+          # 1. Create a fresh temporary folder for the upload
+          mkdir -p upload_dir
           
-          # 2. Copy the generated files from the task's output directory
-          # Based on your script, they are in m3u_task/playlists/
+          # 2. Copy only the results from the task folder
           if [ -d "m3u_task/playlists" ]; then
-            cp -r m3u_task/playlists/* ./deploy_out/
+            cp -r m3u_task/playlists/* ./upload_dir/
           else
             echo "Error: playlists directory not found!"
             exit 1
           fi
           
-          cd deploy_out
+          cd upload_dir
           
-          # 3. Initialize a clean, local-only Git instance
+          # 3. Initialize a clean git environment
           git init
           git config user.name 'PushEngine-Bot'
           git config user.email 'engine@push-engine.local'
           
-          # 4. Add all generated .m3u and .xml files
+          # 4. Prepare the files
           git add .
+          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
           
-          # 5. Commit and Force Push to GitFlic
-          # This ensures GitFlic ONLY has the latest files and no old junk
-          git commit -m "Automated Playlist Update: $(date +'%Y-%m-%d %H:%M')"
-          git remote add origin https://${{ env.GF_USER }}:${{ env.GF_TOKEN }}@${{ env.GF_REPO }}
-          
-          # Pushing to 'master' (standard for GitFlic)
-          git push origin master --force
+          # 5. Direct push using the token (bypasses 'remote origin exists' error)
+          git push "https://${{ env.GF_USER }}:${{ env.GF_TOKEN }}@${{ env.GF_REPO }}" master --force
