@@ -10,7 +10,7 @@ on:
       - main
     paths:
       - 'm3u_task/**'
-      - '.github/workflows/m3u-generator.yml'   # Update filename if different
+      - '.github/workflows/app-m3u-generator.yml'   # Update filename if different
 
 jobs:
   build-and-deploy:
@@ -66,7 +66,7 @@ jobs:
           
           # Setup SSH key from GitHub secret
           mkdir -p ~/.ssh
-          echo "${{ secrets.CODEBERG_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           
           # Add Codeberg to known_hosts to avoid host verification errors
