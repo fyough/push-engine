@@ -1,4 +1,45 @@
-- name: Deploy to BitBucket via SSH
+name: Push app-m3u-generator-BB
+
+on:
+  schedule:
+    # Runs every day at 3:00 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'm3u_task/**'
+      - '.github/workflows/app-m3u-generator-BB.yml'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 lxml
+
+      - name: Run Playlist Generation
+        run: |
+          cd m3u_task
+          python generate_playlists.py
+
+      - name: Deploy to BitBucket via SSH
         env:
           BITBUCKET_REPO: "BuddyChewChew/live.git"
         run: |
@@ -19,19 +60,19 @@
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           
-          # Stage & commit
+          # Stage & commit (skip commit if nothing changed)
           git add .
-          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
+          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit — continuing"
           
           # Setup SSH key from GitHub secret
           mkdir -p ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           
-          # CRITICAL: Change these to bitbucket.org
+          # Add Bitbucket to known_hosts to avoid host verification errors
           ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
           
-          # Add remote pointing to Bitbucket
+          # Add remote and force-push (overwrites history on master)
           git remote add origin git@bitbucket.org:${{ env.BITBUCKET_REPO }}
           git branch -M master
           git push origin master --force
