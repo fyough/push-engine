@@ -37,7 +37,10 @@ jobs:
         working-directory: m3u_task/sd1
         run: |
           mkdir -p en
+          # 1. Generate EPG
           python py/videoxml.py > en/videoall.xml
+          
+          # 2. Generate Playlist with Codeberg EPG header
           {
             echo "#EXTM3U"
             echo '#EXT-X-VOD-CP-EPG: "https://codeberg.org/buddychewchew/live/raw/branch/main/sd1/en/videoall.xml"'
@@ -50,18 +53,29 @@ jobs:
 
       - name: Deploy to Codeberg via SSH
         env:
-          CB_REPO: "buddychewchew/live.git"
+          # Using the exact SSH format for Codeberg
+          CB_SSH_URL: "ssh://git@codeberg.org/BuddyChewChew/live.git"
         run: |
+          # 1. Setup SSH
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
-          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
           
-          git clone git@codeberg.org:${{ env.CB_REPO }} repo_sync
+          # Scan host keys for Codeberg to prevent "Host key verification failed"
+          ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
+          
+          # Force SSH to use the deploy key and ignore host prompts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          
+          # 2. Clone using the explicit SSH protocol URL
+          git clone ${{ env.CB_SSH_URL }} repo_sync
+          
+          # 3. Copy files into the correct subdirectory
           mkdir -p repo_sync/sd1/en
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
           
+          # 4. Commit and Push
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
