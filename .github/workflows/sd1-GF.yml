@@ -8,14 +8,12 @@ on:
       - 'm3u_task/sd1/**'
       - '.github/workflows/sd1-GF.yml'
   schedule:
-    # Runs every 6 hours to refresh tokenized streams
     - cron: '15 4,10,16,22 * * *'
   workflow_dispatch:
 
 jobs:
   scrape-and-deploy:
     runs-on: ubuntu-latest
-    
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -35,14 +33,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 pytz selenium webdriver-manager selenium-stealth
 
-      - name: Generate EPG and Playlist
+      - name: Push SD1-GF
         working-directory: m3u_task/sd1
         run: |
           mkdir -p en
           # 1. Generate EPG
           python py/videoxml.py > en/videoall.xml
           
-          # 2. Generate Playlist with GitFlic-specific EPG header
+          # 2. Generate Playlist with the FIXED GitFlic Raw URL
+          # Using blob/raw?file= and removing the commit hash ensures it's always the latest version.
           {
             echo "#EXTM3U"
             echo '#EXT-X-VOD-CP-EPG: "https://gitflic.ru/project/buddychewchew/live/blob/raw?file=sd1/en/videoall.xml"'
@@ -55,25 +54,18 @@ jobs:
 
       - name: Deploy to GitFlic via SSH
         env:
-          GITFLIC_REPO: "buddychewchew/live.git"
+          GF_REPO: "buddychewchew/live.git"
         run: |
-          # 1. Setup SSH key
           mkdir -p ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
           
-          # 2. Clone GitFlic repo (Safe: doesn't delete existing files)
-          git clone git@gitflic.ru:${{ env.GITFLIC_REPO }} repo_sync
-          
-          # 3. Maintain the sd1/en structure
+          git clone git@gitflic.ru:${{ env.GF_REPO }} repo_sync
           mkdir -p repo_sync/sd1/en
-          
-          # 4. Copy the newly generated files
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
           
-          # 5. Commit and Push
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
