@@ -41,24 +41,21 @@ jobs:
 
       - name: Deploy to GitFlic via SSH
         env:
-          # Updated to match the GitFlic project path structure
           GITFLIC_REPO: "project/buddychewchew/live.git"
         run: |
           # 1. Setup SSH key
           mkdir -p ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          
-          # 2. Trust GitFlic's host key
           ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
           
-          # 3. Clone existing GitFlic repo
+          # 2. Clone the existing repository to preserve current files
           git clone git@gitflic.ru:${{ env.GITFLIC_REPO }} repo_sync
           
-          # 4. Create the subdirectory
+          # 3. Create the subdirectory
           mkdir -p repo_sync/app-m3u-generator
           
-          # 5. Copy generated playlists into that subdirectory
+          # 4. Copy generated playlists into the subdirectory
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
           else
@@ -66,7 +63,7 @@ jobs:
             exit 1
           fi
           
-          # 6. Commit and Push
+          # 5. Commit and Push
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
@@ -74,5 +71,5 @@ jobs:
           git add .
           git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           
-          # GitFlic usually uses master as the default branch
+          # Push to master (Standard GitFlic default)
           git push origin master
