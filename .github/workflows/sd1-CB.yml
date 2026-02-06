@@ -53,8 +53,8 @@ jobs:
 
       - name: Deploy to Codeberg via SSH
         env:
-          # Using the exact SSH format for Codeberg
-          CB_SSH_URL: "ssh://git@codeberg.org/BuddyChewChew/live.git"
+          # Standard SSH format for Codeberg
+          CB_REPO: "git@codeberg.org:BuddyChewChew/live.git"
         run: |
           # 1. Setup SSH
           mkdir -p ~/.ssh
@@ -65,11 +65,11 @@ jobs:
           # Scan host keys for Codeberg
           ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
           
-          # Force SSH to use the deploy key
+          # Force SSH security settings (Matches working GitFlic logic)
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
           # 2. Clone explicitly targeting the main branch
-          git clone --branch main ${{ env.CB_SSH_URL }} repo_sync
+          git clone --branch main ${{ env.CB_REPO }} repo_sync
           
           # 3. Copy files into the correct subdirectory
           mkdir -p repo_sync/sd1/en
@@ -82,5 +82,5 @@ jobs:
           git add .
           git commit -m "✅ SD1 Token Refresh: $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
           
-          # FIXED: Ensuring it pushes to main
+          # Ensure push targets main
           git push origin main
