@@ -37,10 +37,13 @@ jobs:
         working-directory: m3u_task/sd1
         run: |
           mkdir -p en
+          # Generate the EPG file first
           python py/videoxml.py > en/videoall.xml
+          
+          # Construct the M3U with the standard TiviMate compatible header
+          # We place the EPG URL directly into the #EXTM3U line
           {
-            echo "#EXTM3U"
-            echo '#EXT-X-VOD-CP-EPG: "https://bitbucket.org/buddychewchew/live/raw/main/sd1/en/videoall.xml"'
+            echo '#EXTM3U url-tvg="https://bitbucket.org/buddychewchew/live/raw/main/sd1/en/videoall.xml"'
             echo "# Last Updated: $(date '+%Y-%m-%d %H:%M:%S %Z')"
             echo ""
             python py/videolivetv.py
