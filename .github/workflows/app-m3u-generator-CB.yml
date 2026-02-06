@@ -10,7 +10,7 @@ on:
       - main
     paths:
       - 'm3u_task/**'
-      - '.github/workflows/app-m3u-generator-CB.yml'   # Update filename if different
+      - '.github/workflows/app-m3u-generator-CB.yml'
 
 jobs:
   build-and-deploy:
@@ -43,36 +43,33 @@ jobs:
         env:
           CODEBERG_REPO: "BuddyChewChew/live.git"
         run: |
-          # Prepare upload directory with generated files
-          mkdir -p upload_dir
+          # 1. Setup SSH key from GitHub secret
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
           
+          # 2. Clone the existing Codeberg repo
+          git clone git@codeberg.org:${{ env.CODEBERG_REPO }} repo_sync
+          
+          # 3. Create the subdirectory if it doesn't exist
+          mkdir -p repo_sync/app-m3u-generator
+          
+          # 4. Copy generated playlists into that subdirectory
           if [ -d "m3u_task/playlists" ]; then
-            cp -r m3u_task/playlists/* ./upload_dir/
+            cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
           else
             echo "Error: playlists directory not found!"
             exit 1
           fi
           
-          cd upload_dir
-          
-          # Initialize a minimal git repo for push
-          git init
+          # 5. Commit and Push changes
+          cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           
-          # Stage & commit (skip commit if nothing changed)
           git add .
-          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit — continuing"
+          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           
-          # Setup SSH key from GitHub secret
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          
-          # Add Codeberg to known_hosts to avoid host verification errors
-          ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
-          
-          # Add remote and force-push (overwrites history on master)
-          git remote add origin git@codeberg.org:${{ env.CODEBERG_REPO }}
-          git branch -M master
-          git push origin master --force
+          # Push to master without --force to keep existing files safe
+          git push origin master
