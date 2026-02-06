@@ -41,7 +41,7 @@ jobs:
           python py/videoxml.py > en/videoall.xml
           
           # 2. Generate Playlist with the FIXED GitFlic Raw URL
-          # Using blob/raw?file= and removing the commit hash ensures it's always the latest version.
+          # This format uses standard slashes which GitFlic handles correctly for subdirs.
           {
             echo "#EXTM3U"
             echo '#EXT-X-VOD-CP-EPG: "https://gitflic.ru/project/buddychewchew/live/blob/raw?file=sd1/en/videoall.xml"'
@@ -56,12 +56,14 @@ jobs:
         env:
           GF_REPO: "buddychewchew/live.git"
         run: |
+          # Setup SSH access
           mkdir -p ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
           
+          # Sync and Push
           git clone git@gitflic.ru:${{ env.GF_REPO }} repo_sync
           mkdir -p repo_sync/sd1/en
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
