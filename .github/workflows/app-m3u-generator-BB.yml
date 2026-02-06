@@ -42,6 +42,8 @@ jobs:
       - name: Deploy to BitBucket via SSH
         env:
           BITBUCKET_REPO: "BuddyChewChew/live.git"
+          # The full URL for the EPG file on BitBucket
+          EPG_URL: "https://bitbucket.org/BuddyChewChew/live/raw/main/app-m3u-generator/tubi_epg.xml"
         run: |
           # 1. Setup SSH key
           mkdir -p ~/.ssh
@@ -55,7 +57,13 @@ jobs:
           # 3. Create the subdirectory
           mkdir -p repo_sync/app-m3u-generator
           
-          # 4. Copy playlists into subdirectory
+          # 4. Modify the tubi_all.m3u file to use the full URL before copying
+          # This replaces 'tubi_epg.xml' with the full BitBucket URL
+          if [ -f "m3u_task/playlists/tubi_all.m3u" ]; then
+            sed -i "s|url-tvg=\"tubi_epg.xml\"|url-tvg=\"$EPG_URL\"|g" m3u_task/playlists/tubi_all.m3u
+          fi
+
+          # 5. Copy playlists into subdirectory
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
           else
@@ -63,7 +71,7 @@ jobs:
             exit 1
           fi
           
-          # 5. Commit and Push (Preserving other files)
+          # 6. Commit and Push (Preserving other files)
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
