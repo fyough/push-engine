@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 pytz selenium webdriver-manager selenium-stealth
 
-      - name: Push SD1-GF
+      - name: Generate EPG and Playlist
         working-directory: m3u_task/sd1
         run: |
           mkdir -p en
@@ -41,7 +41,6 @@ jobs:
           python py/videoxml.py > en/videoall.xml
           
           # 2. Generate Playlist with the FIXED GitFlic Raw URL
-          # This format uses standard slashes which GitFlic handles correctly for subdirs.
           {
             echo "#EXTM3U"
             echo '#EXT-X-VOD-CP-EPG: "https://gitflic.ru/project/buddychewchew/live/blob/raw?file=sd1/en/videoall.xml"'
@@ -56,21 +55,31 @@ jobs:
         env:
           GF_REPO: "buddychewchew/live.git"
         run: |
-          # Setup SSH access
+          # 1. Setup SSH
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
-          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
           
-          # Sync and Push
-          git clone git@gitflic.ru:${{ env.GF_REPO }} repo_sync
+          # Scan host keys for GitFlic
+          ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
+          
+          # Force SSH to use the deploy key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          
+          # 2. Sync and Push - Explicitly targeting main branch
+          git clone --branch main git@gitflic.ru:${{ env.GF_REPO }} repo_sync
+          
+          # 3. Copy files into the correct subdirectory
           mkdir -p repo_sync/sd1/en
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
           
+          # 4. Commit and Push to main
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           git add .
           git commit -m "✅ SD1 Token Refresh: $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
+          
+          # Explicitly push to main branch
           git push origin main
