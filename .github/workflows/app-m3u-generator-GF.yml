@@ -44,17 +44,18 @@ jobs:
         run: |
           # 1. Setup SSH key
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
           # 2. Add GitFlic to known_hosts
           ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
           
-          # 3. Force Git to use the specific deploy key
-          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+          # 3. Force Git to use the specific deploy key and disable strict checking for the run
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
-          # 4. Clone the existing repository
-          git clone git@gitflic.ru:${{ env.GITFLIC_REPO }} repo_sync
+          # 4. Clone the existing repository - Explicitly target main branch
+          git clone --branch main git@gitflic.ru:${{ env.GITFLIC_REPO }} repo_sync
           
           # 5. Create the subdirectory
           mkdir -p repo_sync/app-m3u-generator
@@ -73,7 +74,7 @@ jobs:
           git config user.email "engine@push-engine.local"
           
           git add .
-          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
+          git commit -m "✅ Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           
-          # Changed from master to main based on your log output
+          # Explicitly push to main
           git push origin main
