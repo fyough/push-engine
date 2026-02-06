@@ -40,7 +40,7 @@ jobs:
           # 1. Generate EPG
           python py/videoxml.py > en/videoall.xml
           
-          # 2. Generate Playlist with the FIXED GitFlic Raw URL
+          # 2. Generate Playlist with the PERMANENT GitFlic Raw URL
           {
             echo "#EXTM3U"
             echo '#EXT-X-VOD-CP-EPG: "https://gitflic.ru/project/buddychewchew/live/blob/raw?file=sd1/en/videoall.xml"'
@@ -61,16 +61,16 @@ jobs:
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
-          # Scan host keys for GitFlic
+          # Scan host keys
           ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
           
-          # Force SSH to use the deploy key
+          # Force SSH security settings (Matches working generator-GF config)
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
-          # 2. Sync and Push - Explicitly targeting main branch
+          # 2. Clone specifically from the main branch
           git clone --branch main git@gitflic.ru:${{ env.GF_REPO }} repo_sync
           
-          # 3. Copy files into the correct subdirectory
+          # 3. Sync files into the correct subdirectory
           mkdir -p repo_sync/sd1/en
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
           
