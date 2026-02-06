@@ -42,25 +42,23 @@ jobs:
         env:
           GITFLIC_REPO: "buddychewchew/live.git"
         run: |
-          # 1. Setup SSH key
+          # 1. Setup SSH
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
-          # 2. Add GitFlic to known_hosts
+          # 2. Add Host Key
           ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
           
-          # 3. Force Git to use the specific deploy key
+          # 3. Set SSH Command with fixed security settings
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
-          # 4. Clone the existing repository - Explicitly target main branch
+          # 4. Clone specifically from the main branch
           git clone --branch main git@gitflic.ru:${{ env.GITFLIC_REPO }} repo_sync
           
-          # 5. Create the subdirectory
+          # 5. Sync files to the generator folder
           mkdir -p repo_sync/app-m3u-generator
-          
-          # 6. Copy generated playlists
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
           else
@@ -68,12 +66,12 @@ jobs:
             exit 1
           fi
           
-          # 7. Commit and Push to main
+          # 6. Commit and Push to main
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
-          
           git add .
-          git commit -m "✅ Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
+          git commit -m "✅ Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
           
+          # Final push ensures we stay on main
           git push origin main
