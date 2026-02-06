@@ -40,10 +40,10 @@ jobs:
           # 1. Generate EPG
           python py/videoxml.py > en/videoall.xml
           
-          # 2. Generate Playlist with Codeberg EPG header
+          # 2. Generate Playlist with Codeberg main branch EPG header
           {
             echo "#EXTM3U"
-            echo '#EXT-X-VOD-CP-EPG: "https://codeberg.org/buddychewchew/live/raw/branch/main/sd1/en/videoall.xml"'
+            echo '#EXT-X-VOD-CP-EPG: "https://codeberg.org/BuddyChewChew/live/raw/branch/main/sd1/en/videoall.xml"'
             echo "# Last Updated: $(date '+%Y-%m-%d %H:%M:%S %Z')"
             echo ""
             python py/videolivetv.py
@@ -62,23 +62,25 @@ jobs:
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
-          # Scan host keys for Codeberg to prevent "Host key verification failed"
+          # Scan host keys for Codeberg
           ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
           
-          # Force SSH to use the deploy key and ignore host prompts
+          # Force SSH to use the deploy key
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
-          # 2. Clone using the explicit SSH protocol URL
-          git clone ${{ env.CB_SSH_URL }} repo_sync
+          # 2. Clone explicitly targeting the main branch
+          git clone --branch main ${{ env.CB_SSH_URL }} repo_sync
           
           # 3. Copy files into the correct subdirectory
           mkdir -p repo_sync/sd1/en
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
           
-          # 4. Commit and Push
+          # 4. Commit and Push to main
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           git add .
           git commit -m "✅ SD1 Token Refresh: $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
+          
+          # FIXED: Ensuring it pushes to main
           git push origin main
