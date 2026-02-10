@@ -3,7 +3,7 @@ name: Push app-m3u-generator-CB
 on:
   schedule:
     # Runs every day at 3:00 AM UTC
-    - cron: '0 3 * * *'
+    - cron: '45 * * * *'
   workflow_dispatch:
   push:
     branches:
