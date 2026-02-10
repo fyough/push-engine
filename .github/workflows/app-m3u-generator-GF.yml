@@ -2,7 +2,7 @@ name: Push app-m3u-generator-GF
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '45 * * * *'
   workflow_dispatch:
   push:
     branches:
