@@ -8,7 +8,7 @@ on:
       - 'm3u_task/sd1/**'
       - '.github/workflows/sd1-BB.yml'
   schedule:
-    - cron: '15 4,10,16,22 * * *'
+    - cron: '45 * * * *'
   workflow_dispatch:
 
 jobs:
