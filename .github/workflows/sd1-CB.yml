@@ -37,10 +37,10 @@ jobs:
         working-directory: m3u_task/sd1
         run: |
           mkdir -p en
-          # 1. Generate EPG
+          # 1. Generate the EPG file using your existing script
           python py/videoxml.py > en/videoall.xml
           
-          # 2. Generate Playlist with TiviMate compatible url-tvg header targeting Codeberg
+          # 2. Construct the M3U with the TiviMate compatible url-tvg header
           {
             echo '#EXTM3U url-tvg="https://codeberg.org/BuddyChewChew/live/raw/branch/main/sd1/en/videoall.xml"'
             echo "# Last Updated: $(date '+%Y-%m-%d %H:%M:%S %Z')"
@@ -54,31 +54,31 @@ jobs:
         env:
           CB_REPO: "git@codeberg.org:BuddyChewChew/live.git"
         run: |
-          # 1. Setup SSH
+          # 1. Setup SSH Identity (Matches your working configuration)
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
-          # Scan host keys for Codeberg
+          # Scan host keys for Codeberg to prevent connection hang
           ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
           
-          # Force SSH security settings
+          # Force SSH to use the deploy key and ignore host checking
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
           # 2. Clone explicitly targeting the main branch
           git clone --branch main ${{ env.CB_REPO }} repo_sync
           
-          # 3. Copy files into the correct subdirectory
+          # 3. Create subdirectory and copy generated files
           mkdir -p repo_sync/sd1/en
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
           
-          # 4. Commit and Push to main
+          # 4. Commit and Push back to Codeberg
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           git add .
           git commit -m "✅ SD1 Token Refresh: $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
           
-          # Ensure push targets main
+          # Explicitly push to the main branch
           git push origin main
