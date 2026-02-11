@@ -34,12 +34,12 @@ jobs:
         working-directory: m3u_task/sd1
         run: |
           mkdir -p en
-          # 1. Generate EPG (Preserving your existing script)
+          # 1. Generate EPG
           python py/videoxml.py > en/videoall.xml
           
-          # 2. Generate Playlist with TiviMate compatible url-tvg header targeting Codeberg
+          # 2. Generate Playlist with TiviMate compatible url-tvg header targeting master branch
           {
-            echo '#EXTM3U url-tvg="https://codeberg.org/BuddyChewChew/live/raw/branch/main/sd1/en/videoall.xml"'
+            echo '#EXTM3U url-tvg="https://codeberg.org/BuddyChewChew/live/raw/branch/master/sd1/en/videoall.xml"'
             echo "# Last Updated: $(date '+%Y-%m-%d %H:%M:%S %Z')"
             echo ""
             python py/videolivetv.py
@@ -57,25 +57,23 @@ jobs:
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
-          # Scan host keys for Codeberg
           ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
           
-          # Force SSH security settings
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
-          # 2. Clone explicitly targeting the main branch
-          git clone --branch main ${{ env.CB_REPO }} repo_sync
+          # 2. Clone explicitly targeting the MASTER branch
+          git clone --branch master ${{ env.CB_REPO }} repo_sync
           
           # 3. Copy files into the correct subdirectory
           mkdir -p repo_sync/sd1/en
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
           
-          # 4. Commit and Push to main
+          # 4. Commit and Push to MASTER
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           git add .
           git commit -m "✅ SD1 Token Refresh: $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
           
-          # Ensure push targets main
-          git push origin main
+          # Push specifically to master
+          git push origin master
