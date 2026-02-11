@@ -40,10 +40,9 @@ jobs:
           # 1. Generate EPG
           python py/videoxml.py > en/videoall.xml
           
-          # 2. Generate Playlist with the PERMANENT GitFlic Raw URL
+          # 2. Generate Playlist with TiviMate compatible url-tvg header for GitFlic
           {
-            echo "#EXTM3U"
-            echo '#EXT-X-VOD-CP-EPG: "https://gitflic.ru/project/buddychewchew/live/blob/raw?file=sd1/en/videoall.xml"'
+            echo '#EXTM3U url-tvg="https://gitflic.ru/project/buddychewchew/live/blob/raw?file=sd1/en/videoall.xml"'
             echo "# Last Updated: $(date '+%Y-%m-%d %H:%M:%S %Z')"
             echo ""
             python py/videolivetv.py
@@ -64,7 +63,7 @@ jobs:
           # Scan host keys
           ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
           
-          # Force SSH security settings (Matches working generator-GF config)
+          # Force SSH security settings
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
           # 2. Clone specifically from the main branch
