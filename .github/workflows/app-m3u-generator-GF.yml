@@ -2,7 +2,8 @@ name: Push app-m3u-generator-GF
 
 on:
   schedule:
-    - cron: '45 * * * *'
+    # Set to 3:00 AM Daily as requested
+    - cron: '0 3 * * *'
   workflow_dispatch:
   push:
     branches:
@@ -15,6 +16,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     
+    # Prevents multiple instances of this specific script from colliding
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -47,31 +49,37 @@ jobs:
           chmod 700 ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          
-          # 2. Add Host Key
           ssh-keyscan gitflic.ru >> ~/.ssh/known_hosts
           
-          # 3. Set SSH Command with fixed security settings
+          # 2. Set SSH Command
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
           
-          # 4. Clone specifically from the main branch
+          # 3. Clone branch main
           git clone --branch main git@gitflic.ru:${{ env.GITFLIC_REPO }} repo_sync
           
-          # 5. Sync files to the generator folder
+          # 4. Sync files
           mkdir -p repo_sync/app-m3u-generator
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
           else
-            echo "Error: playlists directory not found!"
+            echo "Error: playlists directory not found! Check your Python script."
             exit 1
           fi
           
-          # 6. Commit and Push to main
+          # 5. Commit and Push with Sync Logic
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
-          git add .
-          git commit -m "✅ Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
           
-          # Final push ensures we stay on main
-          git push origin main
+          git add .
+          # Only commit/push if files actually changed
+          if ! git diff --cached --quiet; then
+            git commit -m "✅ Automated Update: $(date +'%Y-%m-%d %H:%M')"
+            
+            # REBASE: Catch up with SD1 changes before pushing
+            git pull --rebase origin main
+            
+            git push origin main
+          else
+            echo "No changes detected. Skipping push."
+          fi
