@@ -2,8 +2,8 @@ name: Push app-m3u-generator-CB
 
 on:
   schedule:
-    # Runs every day at 3:00 AM UTC
-    - cron: '45 * * * *'
+    # Mirrored Daily Schedule
+    - cron: '0 3 * * *'
   workflow_dispatch:
   push:
     branches:
@@ -43,7 +43,7 @@ jobs:
         env:
           CODEBERG_REPO: "BuddyChewChew/live.git"
         run: |
-          # 1. Setup SSH key from GitHub secret
+          # 1. Setup SSH key
           mkdir -p ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -52,10 +52,10 @@ jobs:
           # 2. Clone the existing Codeberg repo
           git clone git@codeberg.org:${{ env.CODEBERG_REPO }} repo_sync
           
-          # 3. Create the subdirectory if it doesn't exist
+          # 3. Create the subdirectory
           mkdir -p repo_sync/app-m3u-generator
           
-          # 4. Copy generated playlists into that subdirectory
+          # 4. Strict Error Handling
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
           else
@@ -63,13 +63,20 @@ jobs:
             exit 1
           fi
           
-          # 5. Commit and Push changes
+          # 5. Commit and Push with Rebase (Targeting MASTER to match your repo)
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           
           git add .
-          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           
-          # Push to master without --force to keep existing files safe
-          git push origin master
+          if ! git diff --cached --quiet; then
+            git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
+            
+            # REBASE: Pulls latest MASTER changes before pushing back to MASTER
+            git pull --rebase origin master
+            
+            git push origin master
+          else
+            echo "No changes detected. Skipping push."
+          fi
