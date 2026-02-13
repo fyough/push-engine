@@ -58,7 +58,6 @@ jobs:
           mkdir -p repo_sync/app-m3u-generator
           
           # 4. Modify the tubi_all.m3u file to use the full URL before copying
-          # This replaces 'tubi_epg.xml' with the full BitBucket URL
           if [ -f "m3u_task/playlists/tubi_all.m3u" ]; then
             sed -i "s|url-tvg=\"tubi_epg.xml\"|url-tvg=\"$EPG_URL\"|g" m3u_task/playlists/tubi_all.m3u
           fi
@@ -71,13 +70,22 @@ jobs:
             exit 1
           fi
           
-          # 6. Commit and Push (Preserving other files)
+          # 6. Commit and Push (Conflict Protection Integrated)
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
           
           git add .
-          git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           
-          # Push to main without --force
-          git push origin main
+          # Only proceed if there are actual playlist changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
+            
+            # REBASE: Downloads SD1's latest token pushes first, 
+            # then puts your m3u updates on top of them.
+            git pull --rebase origin main
+            
+            git push origin main
+          else
+            echo "No changes detected. Skipping push to Bitbucket."
+          fi
