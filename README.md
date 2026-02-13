@@ -1,2 +1,3 @@
 
-This script does not generate any .m3u files. Nothing is hosted on Github.
+
+⚠️ Note: this script does not provide any playlists or other digital content. Nothing is hosted on Github.
