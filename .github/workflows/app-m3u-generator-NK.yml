@@ -42,8 +42,8 @@ jobs:
       - name: Deploy to Nadeko via SSH
         env:
           NADEKO_REPO: "BuddyChewChew/live.git"
-          # Full absolute EPG URL for the Nadeko instance (master branch)
-          EPG_URL: "https://git.nadeko.net/BuddyChewChew/live/raw/branch/master/app-m3u-generator/tubi_epg.xml"
+          # The full URL for the EPG file on Nadeko (targeting main branch)
+          EPG_URL: "https://git.nadeko.net/BuddyChewChew/live/raw/branch/main/app-m3u-generator/tubi_epg.xml"
         run: |
           # 1. Setup SSH key
           mkdir -p ~/.ssh
@@ -57,8 +57,8 @@ jobs:
           # 3. Create the subdirectory
           mkdir -p repo_sync/app-m3u-generator
           
-          # 4. Modify the tubi_all.m3u file to use the full URL before copying
-          # This matches the EPG function logic used in your other workflows
+          # 4. Modify the tubi_all.m3u file to use the full Nadeko URL before copying
+          # This matches the EPG function logic used in your BB workflow
           if [ -f "m3u_task/playlists/tubi_all.m3u" ]; then
             sed -i "s|url-tvg=\"tubi_epg.xml\"|url-tvg=\"$EPG_URL\"|g" m3u_task/playlists/tubi_all.m3u
           fi
@@ -71,7 +71,7 @@ jobs:
             exit 1
           fi
           
-          # 6. Commit and Push (Targeting MASTER)
+          # 6. Commit and Push (Targeting main)
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
@@ -81,10 +81,10 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
             
-            # REBASE: Pulls latest MASTER changes before pushing
-            git pull --rebase origin master
+            # REBASE: Pulls latest main changes before pushing
+            git pull --rebase origin main
             
-            git push origin master
+            git push origin main
           else
             echo "No changes detected. Skipping push to Nadeko."
           fi
