@@ -41,29 +41,29 @@ jobs:
       - name: Deploy to Nadeko via SSH
         env:
           NADEKO_REPO: "BuddyChewChew/live.git"
-          # EPG URL targeting the 'main' branch as requested
+          # EPG URL for Nadeko using the main branch
           EPG_URL: "https://git.nadeko.net/BuddyChewChew/live/raw/branch/main/app-m3u-generator/tubi_epg.xml"
         run: |
-          # 1. Setup SSH key with strict formatting protection
+          # 1. Setup SSH key
           mkdir -p ~/.ssh
-          echo "${{ secrets.PUSH_KEY }}" | tr -d '\r' > ~/.ssh/id_ed25519
+          echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           
-          # 2. Add Nadeko to known hosts and disable strict host checking for this run
-          ssh-keyscan -H git.nadeko.net >> ~/.ssh/known_hosts
-          echo "Host git.nadeko.net" >> ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-
-          # 3. Clone existing Nadeko repo (using verbose for debugging)
-          git clone -v git@git.nadeko.net:${{ env.NADEKO_REPO }} repo_sync
+          # 2. Add Nadeko to known hosts
+          ssh-keyscan git.nadeko.net >> ~/.ssh/known_hosts
           
-          # 4. Apply EPG URL Replacement logic (from your BB workflow)
+          # 3. Clone existing Nadeko repo
+          git clone git@git.nadeko.net:${{ env.NADEKO_REPO }} repo_sync
+          
+          # 4. Create the subdirectory
+          mkdir -p repo_sync/app-m3u-generator
+          
+          # 5. Modify the tubi_all.m3u file to use the full Nadeko URL (BB logic)
           if [ -f "m3u_task/playlists/tubi_all.m3u" ]; then
             sed -i "s|url-tvg=\"tubi_epg.xml\"|url-tvg=\"$EPG_URL\"|g" m3u_task/playlists/tubi_all.m3u
           fi
 
-          # 5. Copy playlists into subdirectory
-          mkdir -p repo_sync/app-m3u-generator
+          # 6. Copy playlists into subdirectory
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
           else
@@ -71,7 +71,7 @@ jobs:
             exit 1
           fi
           
-          # 6. Commit and Push to the 'main' branch
+          # 7. Commit and Push targeting the main branch
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
@@ -80,8 +80,11 @@ jobs:
           
           if ! git diff --cached --quiet; then
             git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
+            
+            # REBASE: Pulls latest main changes before pushing
             git pull --rebase origin main
+            
             git push origin main
           else
-            echo "No changes detected. Skipping push."
+            echo "No changes detected. Skipping push to Nadeko."
           fi
