@@ -2,7 +2,7 @@ name: Push app-m3u-generator-NK
 
 on:
   schedule:
-    # Mirrored Daily Schedule
+    # Runs every day at 3:00 AM UTC
     - cron: '0 3 * * *'
   workflow_dispatch:
   push:
@@ -42,7 +42,7 @@ jobs:
       - name: Deploy to Nadeko via SSH
         env:
           NADEKO_REPO: "BuddyChewChew/live.git"
-          # The raw URL for the EPG file on Nadeko
+          # Full absolute EPG URL for the Nadeko instance (master branch)
           EPG_URL: "https://git.nadeko.net/BuddyChewChew/live/raw/branch/master/app-m3u-generator/tubi_epg.xml"
         run: |
           # 1. Setup SSH key
@@ -51,13 +51,14 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan git.nadeko.net >> ~/.ssh/known_hosts
           
-          # 2. Clone the existing Nadeko repo
+          # 2. Clone existing Nadeko repo
           git clone git@git.nadeko.net:${{ env.NADEKO_REPO }} repo_sync
           
           # 3. Create the subdirectory
           mkdir -p repo_sync/app-m3u-generator
           
-          # 4. Modify the tubi_all.m3u file to use the full Nadeko URL before copying
+          # 4. Modify the tubi_all.m3u file to use the full URL before copying
+          # This matches the EPG function logic used in your other workflows
           if [ -f "m3u_task/playlists/tubi_all.m3u" ]; then
             sed -i "s|url-tvg=\"tubi_epg.xml\"|url-tvg=\"$EPG_URL\"|g" m3u_task/playlists/tubi_all.m3u
           fi
