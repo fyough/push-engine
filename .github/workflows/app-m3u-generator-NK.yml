@@ -42,10 +42,10 @@ jobs:
       - name: Deploy to Nadeko via SSH
         env:
           NADEKO_REPO: "BuddyChewChew/live.git"
-          # The full URL for the EPG file on Nadeko (targeting main branch)
+          # EPG URL configured for Nadeko on the main branch
           EPG_URL: "https://git.nadeko.net/BuddyChewChew/live/raw/branch/main/app-m3u-generator/tubi_epg.xml"
         run: |
-          # 1. Setup SSH key
+          # 1. Setup SSH key using the PUSH_KEY secret
           mkdir -p ~/.ssh
           echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -57,11 +57,10 @@ jobs:
           # 3. Create the subdirectory
           mkdir -p repo_sync/app-m3u-generator
           
-          # 4. Modify the tubi_all.m3u file to use the full Nadeko URL before copying
-          # This matches the EPG function logic used in your BB workflow
+          # 4. Apply EPG URL Replacement logic (Matches app-m3u-generator-BB.yml)
           if [ -f "m3u_task/playlists/tubi_all.m3u" ]; then
             sed -i "s|url-tvg=\"tubi_epg.xml\"|url-tvg=\"$EPG_URL\"|g" m3u_task/playlists/tubi_all.m3u
-          fi
+          [cite_start]fi [cite: 2]
 
           # 5. Copy playlists into subdirectory
           if [ -d "m3u_task/playlists" ]; then
@@ -71,7 +70,7 @@ jobs:
             exit 1
           fi
           
-          # 6. Commit and Push (Targeting main)
+          # 6. Commit and Push targeting the main branch
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
@@ -81,7 +80,7 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
             
-            # REBASE: Pulls latest main changes before pushing
+            # REBASE: Pulls latest main changes before pushing 
             git pull --rebase origin main
             
             git push origin main
