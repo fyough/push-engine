@@ -42,6 +42,8 @@ jobs:
       - name: Deploy to Codeberg via SSH
         env:
           CODEBERG_REPO: "BuddyChewChew/live.git"
+          # The full URL for the EPG file on Codeberg (using master branch)
+          EPG_URL: "https://codeberg.org/BuddyChewChew/live/raw/branch/master/app-m3u-generator/tubi_epg.xml"
         run: |
           # 1. Setup SSH key
           mkdir -p ~/.ssh
@@ -55,7 +57,12 @@ jobs:
           # 3. Create the subdirectory
           mkdir -p repo_sync/app-m3u-generator
           
-          # 4. Strict Error Handling
+          # 4. Modify the tubi_all.m3u file to use the full Codeberg URL before copying
+          if [ -f "m3u_task/playlists/tubi_all.m3u" ]; then
+            sed -i "s|url-tvg=\"tubi_epg.xml\"|url-tvg=\"$EPG_URL\"|g" m3u_task/playlists/tubi_all.m3u
+          fi
+
+          # 5. Strict Error Handling
           if [ -d "m3u_task/playlists" ]; then
             cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
           else
@@ -63,7 +70,7 @@ jobs:
             exit 1
           fi
           
-          # 5. Commit and Push with Rebase (Targeting MASTER to match your repo)
+          # 6. Commit and Push with Rebase (Targeting MASTER)
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
@@ -73,10 +80,10 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
             
-            # REBASE: Pulls latest MASTER changes before pushing back to MASTER
+            # REBASE: Pulls latest MASTER changes before pushing
             git pull --rebase origin master
             
             git push origin master
           else
-            echo "No changes detected. Skipping push."
+            echo "No changes detected. Skipping push to Codeberg."
           fi
