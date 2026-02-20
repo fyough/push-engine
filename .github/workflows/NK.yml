@@ -1,0 +1,89 @@
+name: Push app-m3u-generator-NK
+
+on:
+  schedule:
+    # Mirrored Daily Schedule
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'm3u_task/**'
+      - '.github/workflows/app-m3u-generator-NK.yml'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 lxml
+
+      - name: Run Playlist Generation
+        run: |
+          cd m3u_task
+          python generate_playlists.py
+
+      - name: Deploy to Nadeko via SSH
+        env:
+          NADEKO_REPO: "BuddyChewChew/live.git"
+          # The raw URL for the EPG file on Nadeko
+          EPG_URL: "https://git.nadeko.net/BuddyChewChew/live/raw/branch/master/app-m3u-generator/tubi_epg.xml"
+        run: |
+          # 1. Setup SSH key
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan git.nadeko.net >> ~/.ssh/known_hosts
+          
+          # 2. Clone the existing Nadeko repo
+          git clone git@git.nadeko.net:${{ env.NADEKO_REPO }} repo_sync
+          
+          # 3. Create the subdirectory
+          mkdir -p repo_sync/app-m3u-generator
+          
+          # 4. Modify the tubi_all.m3u file to use the full Nadeko URL before copying
+          if [ -f "m3u_task/playlists/tubi_all.m3u" ]; then
+            sed -i "s|url-tvg=\"tubi_epg.xml\"|url-tvg=\"$EPG_URL\"|g" m3u_task/playlists/tubi_all.m3u
+          fi
+
+          # 5. Copy playlists into subdirectory
+          if [ -d "m3u_task/playlists" ]; then
+            cp -r m3u_task/playlists/* repo_sync/app-m3u-generator/
+          else
+            echo "Error: playlists directory not found!"
+            exit 1
+          fi
+          
+          # 6. Commit and Push (Targeting MASTER)
+          cd repo_sync
+          git config user.name "PushEngine-Bot"
+          git config user.email "engine@push-engine.local"
+          
+          git add .
+          
+          if ! git diff --cached --quiet; then
+            git commit -m "Automated Update: $(date +'%Y-%m-%d %H:%M')"
+            
+            # REBASE: Pulls latest MASTER changes before pushing
+            git pull --rebase origin master
+            
+            git push origin master
+          else
+            echo "No changes detected. Skipping push to Nadeko."
+          fi
