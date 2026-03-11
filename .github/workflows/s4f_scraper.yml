@@ -35,8 +35,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Use a wildcard for the s4f folder to prevent "file not found" errors
-          git add s4f/*
+          # Stage all changes in the s4f directory
+          git add s4f/*.m3u8 s4f/*.xml s4f/*.json
           
           if ! git diff --cached --quiet; then
             git commit -m "s4f update: sync playlists and data – $(date -u +'%Y-%m-%d %H:%M UTC')"
