@@ -16,60 +16,57 @@ class SportsScraper:
     def run(self):
         try:
             with httpx.Client(headers=self.headers, timeout=20.0) as client:
-                # 1. Get Group Names
-                groups_res = client.get(self.groups_url)
-                groups_data = groups_res.json()
-                
-                # 2. Get Channels
-                channels_res = client.get(self.channels_url)
-                channels_data = channels_res.json()
+                # 1. Fetch data
+                groups_res = client.get(self.groups_url).json()
+                channels_res = client.get(self.channels_url).json()
 
-                # SAFETY CHECK: Ensure we actually got lists back from the API 
-                if not isinstance(groups_data, list) or not isinstance(channels_data, list):
-                    print(f"Error: API did not return a list. Groups type: {type(groups_data)}, Channels type: {type(channels_data)}")
-                    return
+                # 2. Build group map (forcing IDs to strings for matching)
+                group_map = {}
+                if isinstance(groups_res, list):
+                    for g in groups_res:
+                        g_id = str(g.get('id', '')).strip()
+                        g_name = str(g.get('name', 'OTHER')).strip()
+                        group_map[g_id] = g_name
 
-                # Create a map of IDs to Group Names
-                group_map = {str(g['id']): g['name'].strip() for g in groups_data if isinstance(g, dict)}
-                
         except Exception as e:
-            print(f"Error fetching or parsing data: {e}") [cite: 1]
+            print(f"Error fetching data: {e}")
             return
 
         # Sort channels alphabetically by name
-        channels_data.sort(key=lambda x: x.get('name', '').lower())
+        if isinstance(channels_res, list):
+            channels_res.sort(key=lambda x: str(x.get('name', '')).lower())
+        else:
+            print("Error: Channels data is not a list")
+            return
 
         m3u_full = [f'#EXTM3U x-tvg-url="https://raw.githubusercontent.com/BuddyChewChew/sports/main/s4f/s4f_epg.xml"']
         m3u_us_only = [f'#EXTM3U x-tvg-url="https://raw.githubusercontent.com/BuddyChewChew/sports/main/s4f/s4f_epg.xml"']
         root = ET.Element("tv")
 
-        for ch in channels_data:
-            if not isinstance(ch, dict): continue
+        for ch in channels_res:
+            name = str(ch.get('name', 'Unknown')).strip()
+            logo = str(ch.get('logo', '')).strip()
             
-            name = ch.get('name', 'Unknown').strip()
-            logo = ch.get('logo', '').strip()
+            # ID Extraction
+            original_stream = str(ch.get('stream', ''))
+            extracted_id = original_stream.split('id=')[-1] if "id=" in original_stream else str(ch.get('tvgId', ''))
+            if not extracted_id or extracted_id == 'None': continue
             
-            # Extract raw ID from the API data
-            original_stream = ch.get('stream', '')
-            extracted_id = original_stream.split('id=')[-1] if "id=" in original_stream else str(ch.get('tvgId'))
-            if not extracted_id: continue
-            
-            # Set unique_tvg_id to match API ID exactly (no "s4f_" prefix)
             unique_tvg_id = extracted_id
-            
             stream_url = f"{self.web_base}?id={unique_tvg_id}&type=.m3u8"
             
-            group_id = str(ch.get('groupId', ''))
-            group_name = group_map.get(group_id, "OTHER").upper()
-
-            # M3U Entry
+            # Improved Group Matching
+            raw_group_id = str(ch.get('groupId', '')).strip()
+            group_name = group_map.get(raw_group_id, "OTHER").upper()
+            
             entry = f'#EXTINF:-1 tvg-id="{unique_tvg_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{group_name}",{name}\n{stream_url}'
 
             m3u_full.append(entry)
-            if "USA" in group_name or "US|" in name:
+            # Filter for US playlist
+            if "USA" in group_name or "US|" in name or "UNITED STATES" in group_name:
                 m3u_us_only.append(entry)
 
-            # Build EPG Node
+            # EPG Generation
             channel_node = ET.SubElement(root, "channel", id=unique_tvg_id)
             ET.SubElement(channel_node, "display-name").text = name
             prog = ET.SubElement(root, "programme", 
@@ -78,17 +75,17 @@ class SportsScraper:
                                 channel=unique_tvg_id)
             ET.SubElement(prog, "title").text = f"LIVE: {name}"
 
-        # Write all files to the s4f directory
+        # Save Files
         with open(os.path.join(self.output_dir, "s4f_playlist.m3u8"), "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_full))
         with open(os.path.join(self.output_dir, "s4f_us_only.m3u8"), "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_us_only))
         with open(os.path.join(self.output_dir, "s4f_data.json"), "w", encoding="utf-8") as f:
-            json.dump(channels_data, f, indent=4)
+            json.dump(channels_res, f, indent=4)
         
         tree = ET.ElementTree(root)
         tree.write(os.path.join(self.output_dir, "s4f_epg.xml"), encoding="utf-8", xml_declaration=True)
-        print("Success: Playlists and EPG updated with raw API IDs.")
+        print(f"Success: Processed {len(m3u_full)-1} channels.")
 
 if __name__ == "__main__":
     SportsScraper().run()
