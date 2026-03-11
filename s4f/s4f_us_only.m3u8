@@ -1,4 +1,4 @@
-#EXTM3U x-tvg-url="https://raw.githubusercontent.com/BuddyChewChew/sports/main/s4f/s4f_epg.xml"
+#EXTM3U x-tvg-url="https://raw.githubusercontent.com/BuddyChewChew/sports/main/s4f/s4f_epg.xml" m3u-updated="2026-03-11 03:39:36"
 #EXTINF:-1 tvg-id="1861513" tvg-name="US|  AX MEN FHD (S)" tvg-logo="https://s12.gifyu.com/images/SaIP8.png" group-title="OTHER",US|  AX MEN FHD (S)
 https://my-dev--worker-1-x5wz.diploi.me/hls?id=1861513&type=.m3u8
 #EXTINF:-1 tvg-id="1861184" tvg-name="US|  MGM+ DRIVE-IN FHD (S)" tvg-logo="https://raw.githubusercontent.com/tv-logo/tv-logos/main/countries/united-states/mgm-plus-drive-in-us.png" group-title="OTHER",US|  MGM+ DRIVE-IN FHD (S)
