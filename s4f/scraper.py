@@ -1,4 +1,19 @@
-def run(self):
+import httpx
+import json
+import os
+import xml.etree.ElementTree as ET
+from datetime import datetime
+
+class SportsScraper:
+    def __init__(self):
+        self.headers = {"User-Agent": "Mozilla/5.0"}
+        self.groups_url = "https://my-dev--master-gqd4.diploi.me/api/groups"
+        self.channels_url = "https://my-dev--master-gqd4.diploi.me/api/channels"
+        self.web_base = "https://my-dev--worker-1-x5wz.diploi.me/hls"
+        self.output_dir = os.path.dirname(os.path.abspath(__file__))
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def run(self):
         try:
             with httpx.Client(headers=self.headers, timeout=20.0) as client:
                 # 1. Get Group Names
@@ -9,7 +24,7 @@ def run(self):
                 channels_res = client.get(self.channels_url)
                 channels_data = channels_res.json()
 
-                # SAFETY CHECK: Ensure we actually got lists back from the API [cite: 1]
+                # SAFETY CHECK: Ensure we actually got lists back from the API 
                 if not isinstance(groups_data, list) or not isinstance(channels_data, list):
                     print(f"Error: API did not return a list. Groups type: {type(groups_data)}, Channels type: {type(channels_data)}")
                     return
@@ -74,3 +89,6 @@ def run(self):
         tree = ET.ElementTree(root)
         tree.write(os.path.join(self.output_dir, "s4f_epg.xml"), encoding="utf-8", xml_declaration=True)
         print("Success: Playlists and EPG updated with raw API IDs.")
+
+if __name__ == "__main__":
+    SportsScraper().run()
