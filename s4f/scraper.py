@@ -10,6 +10,7 @@ class SportsScraper:
         self.groups_url = "https://my-dev--master-gqd4.diploi.me/api/groups"
         self.channels_url = "https://my-dev--master-gqd4.diploi.me/api/channels"
         self.web_base = "https://my-dev--worker-1-x5wz.diploi.me/hls"
+        # Saves directly into the s4f folder relative to the repo root for GitHub Actions
         self.output_dir = "s4f"
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -19,23 +20,23 @@ class SportsScraper:
                 groups_res = client.get(self.groups_url).json()
                 channels_res = client.get(self.channels_url).json()
 
-                # DATA SAFEGUARD: Verify we have lists of dictionaries
+                # Verify we have valid lists to prevent "str object has no attribute get" errors
                 if not isinstance(groups_res, list) or not isinstance(channels_res, list):
-                    print("Error: API did not return valid lists. Check API health.")
+                    print("Error: API did not return valid lists.")
                     return
 
+                # Build group map forcing IDs to strings to ensure matching
                 group_map = {}
                 for g in groups_res:
                     if isinstance(g, dict):
                         g_id = str(g.get('id', '')).strip()
                         g_name = str(g.get('name', 'OTHER')).strip()
                         group_map[g_id] = g_name
-
         except Exception as e:
             print(f"Error fetching data: {e}")
             return
 
-        # Sort channels alphabetically
+        # Sort channels alphabetically by name
         channels_res.sort(key=lambda x: str(x.get('name', '')).lower() if isinstance(x, dict) else "")
 
         m3u_full = [f'#EXTM3U x-tvg-url="https://raw.githubusercontent.com/BuddyChewChew/sports/main/s4f/s4f_epg.xml"']
@@ -48,6 +49,7 @@ class SportsScraper:
             name = str(ch.get('name', 'Unknown')).strip()
             logo = str(ch.get('logo', '')).strip()
             
+            # ID Extraction: Get the raw ID from the end of the stream URL
             original_stream = str(ch.get('stream', ''))
             extracted_id = original_stream.split('id=')[-1] if "id=" in original_stream else str(ch.get('tvgId', ''))
             if not extracted_id or extracted_id == 'None': continue
@@ -55,6 +57,7 @@ class SportsScraper:
             unique_tvg_id = extracted_id
             stream_url = f"{self.web_base}?id={unique_tvg_id}&type=.m3u8"
             
+            # Group Matching: Use the clean string ID to find the group name
             raw_group_id = str(ch.get('groupId', '')).strip()
             group_name = group_map.get(raw_group_id, "OTHER").upper()
             
@@ -64,6 +67,7 @@ class SportsScraper:
             if any(x in group_name for x in ["USA", "UNITED STATES"]) or "US|" in name:
                 m3u_us_only.append(entry)
 
+            # EPG XML Node
             channel_node = ET.SubElement(root, "channel", id=unique_tvg_id)
             ET.SubElement(channel_node, "display-name").text = name
             prog = ET.SubElement(root, "programme", 
@@ -72,6 +76,7 @@ class SportsScraper:
                                 channel=unique_tvg_id)
             ET.SubElement(prog, "title").text = f"LIVE: {name}"
 
+        # Save all files to the s4f directory
         with open(os.path.join(self.output_dir, "s4f_playlist.m3u8"), "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_full))
         with open(os.path.join(self.output_dir, "s4f_us_only.m3u8"), "w", encoding="utf-8") as f:
