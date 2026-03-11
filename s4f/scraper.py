@@ -16,17 +16,13 @@ class SportsScraper:
     def run(self):
         try:
             with httpx.Client(headers=self.headers, timeout=20.0) as client:
-                # 1. Get Group Names
                 groups_data = client.get(self.groups_url).json()
                 group_map = {str(g['id']): g['name'].strip() for g in groups_data}
-                
-                # 2. Get Channels
                 channels_data = client.get(self.channels_url).json()
         except Exception as e:
             print(f"Error fetching data: {e}")
             return
 
-        # Sort channels alphabetically by name for a better guide experience
         channels_data.sort(key=lambda x: x.get('name', '').lower())
 
         m3u_full = [f'#EXTM3U x-tvg-url="https://raw.githubusercontent.com/BuddyChewChew/sports/main/s4f/s4f_epg.xml"']
@@ -37,27 +33,26 @@ class SportsScraper:
             name = ch.get('name', 'Unknown').strip()
             logo = ch.get('logo', '').strip()
             
-            # Extract ID and Format URL
+            # Use raw ID from API
             original_stream = ch.get('stream', '')
-            extracted_id = original_stream.split('id=')[-1] if "id=" in original_stream else ch.get('tvgId')
+            extracted_id = original_stream.split('id=')[-1] if "id=" in original_stream else str(ch.get('tvgId'))
             if not extracted_id: continue
             
             stream_url = f"{self.web_base}?id={extracted_id}&type=.m3u8"
             
-            # Use the Group Map for sorting
             group_id = str(ch.get('groupId', ''))
             group_name = group_map.get(group_id, "OTHER").upper()
             
-            unique_tvg_id = f"s4f_{extracted_id}"
+            # REMOVED PREFIX: unique_tvg_id is now just the ID number
+            unique_tvg_id = extracted_id
 
-            # Formatting for TiviMate
             entry = f'#EXTINF:-1 tvg-id="{unique_tvg_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{group_name}",{name}\n{stream_url}'
 
             m3u_full.append(entry)
             if "USA" in group_name or "US|" in name:
                 m3u_us_only.append(entry)
 
-            # EPG Generation
+            # Build Placeholder EPG with matching ID
             channel_node = ET.SubElement(root, "channel", id=unique_tvg_id)
             ET.SubElement(channel_node, "display-name").text = name
             prog = ET.SubElement(root, "programme", 
@@ -66,15 +61,15 @@ class SportsScraper:
                                 channel=unique_tvg_id)
             ET.SubElement(prog, "title").text = f"LIVE: {name}"
 
-        # Save Files
         with open(os.path.join(self.output_dir, "s4f_playlist.m3u8"), "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_full))
         with open(os.path.join(self.output_dir, "s4f_us_only.m3u8"), "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_us_only))
+        with open(os.path.join(self.output_dir, "s4f_data.json"), "w", encoding="utf-8") as f:
+            json.dump(channels_data, f, indent=4)
         
         tree = ET.ElementTree(root)
         tree.write(os.path.join(self.output_dir, "s4f_epg.xml"), encoding="utf-8", xml_declaration=True)
-        print("Success: Playlists sorted by official group names.")
 
 if __name__ == "__main__":
     SportsScraper().run()
