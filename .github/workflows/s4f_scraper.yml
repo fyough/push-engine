@@ -1,4 +1,4 @@
-name: ▶️ s4f Stream Scraper (Hourly)
+name: "▶️ s4f Stream Scraper (Hourly)"
 
 on:
   schedule:
@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install httpx
+          pip install cloudscraper zstandard
 
       - name: Run s4f scraper
         run: python s4f/scraper.py
