@@ -10,21 +10,22 @@ class SportsScraper:
         # cloudscraper uses a specialized request adapter to bypass Cloudflare
         self.scraper = cloudscraper.create_scraper(
             browser={
-                'browser': 'chrome',
+                'browser': 'firefox',
                 'platform': 'windows',
                 'desktop': True
             }
         )
-        # These headers mimic the browser request seen in your logs
+        # Mimicking the exact headers from your browser logs
         self.scraper.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0",
             "Accept": "application/json, text/plain, */*",
             "Accept-Language": "en-US,en;q=0.9",
             "Origin": "https://sports4free.ru",
             "Referer": "https://sports4free.ru/",
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-origin"
+            "Sec-Fetch-Site": "same-origin",
+            "Priority": "u=4"
         })
         
         self.channels_url = "https://sports4free.ru/channel-api/channels"
@@ -36,28 +37,32 @@ class SportsScraper:
 
     def run(self):
         try:
-            # 1. Fetch Groups (mapping ID to Name)
             print("Fetching groups...")
-            groups_res = self.scraper.get(self.groups_url).json()
-            group_map = {str(g['id']): g['name'] for g in groups_res if 'id' in g}
+            groups_resp = self.scraper.get(self.groups_url)
+            groups_resp.raise_for_status() # Check for 403/503 errors
+            groups_data = groups_resp.json()
+            group_map = {str(g['id']): g['name'] for g in groups_data if 'id' in g}
             
-            # Small delay to prevent rate-limiting/detection
-            time.sleep(2) 
+            # Delay to mimic human browsing speed
+            time.sleep(2.5) 
 
-            # 2. Fetch Channels
             print("Fetching channels...")
-            channels_res = self.scraper.get(self.channels_url).json()
+            channels_resp = self.scraper.get(self.channels_url)
+            channels_resp.raise_for_status()
+            channels_res = channels_resp.json()
 
             if not isinstance(channels_res, list):
                 print("Error: API response is not a list.")
                 return
 
         except Exception as e:
-            # This captures the "Expecting value" error if Cloudflare blocks the runner
-            print(f"Error fetching data: {e}")
+            # This captures the Cloudflare block without crashing the whole process
+            print(f"FAILED to bypass Cloudflare: {e}")
+            if 'resp' in locals():
+                print(f"Response snippet: {groups_resp.text[:200]}")
             return
 
-        # Sort channels alphabetically by name
+        # Sort channels alphabetically
         channels_res.sort(key=lambda x: str(x.get('name', '')).lower() if isinstance(x, dict) else "")
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -73,22 +78,21 @@ class SportsScraper:
             name = str(ch.get('name', 'Unknown')).strip()
             logo = str(ch.get('logo', '')).strip()
             
-            # Link groupId to the Name from groups.json
+            # Map groupId to group name
             g_id = str(ch.get('groupId', ''))
             group_name = group_map.get(g_id, "OTHER").strip().upper()
             
-            # Use the channel ID for the stream link
+            # Extract ID for the CDN URL
             ch_id = str(ch.get('id', ''))
             if not ch_id or ch_id == 'None':
                 continue
             
             stream_url = f"{self.web_base}?id={ch_id}"
             
-            # Create M3U Entry
+            # Build M3U entry
             entry = f'#EXTINF:-1 tvg-id="{ch_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{group_name}",{name}\n{stream_url}'
             m3u_full.append(entry)
             
-            # Filter for US channels
             if any(term in group_name for term in ["US|", "UNITED STATES"]) or "US|" in name:
                 m3u_us_only.append(entry)
 
@@ -96,7 +100,7 @@ class SportsScraper:
             channel_node = ET.SubElement(root, "channel", id=ch_id)
             ET.SubElement(channel_node, "display-name").text = name
 
-        # Save all files to the s4f directory
+        # Final File Writing
         with open(os.path.join(self.output_dir, "s4f_playlist.m3u8"), "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_full))
         with open(os.path.join(self.output_dir, "s4f_us_only.m3u8"), "w", encoding="utf-8") as f:
