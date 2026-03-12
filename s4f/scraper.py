@@ -1,116 +1,156 @@
 import json
 import os
+import random
 import time
-import xml.etree.ElementTree as ET
 from datetime import datetime
-import cloudscraper
+import xml.etree.ElementTree as ET
+from curl_cffi import requests
+from curl_cffi.requests import Session
 
-class SportsScraper:
+class Sports4FreeScraper:
     def __init__(self):
-        # cloudscraper uses a specialized request adapter to bypass Cloudflare
-        self.scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'firefox',
-                'platform': 'windows',
-                'desktop': True
-            }
-        )
-        # Mimicking the exact headers from your browser logs
-        self.scraper.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0",
+        proxy_url = os.getenv("PROXY_URL")  # e.g. http://user:pass@residential-ip:port
+        self.proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+
+        # Use strong browser impersonation
+        self.session = Session(impersonate=random.choice([
+            "chrome131", "chrome124", "chrome120",
+            "edge131", "edge122", "safari18.0"
+        ]))
+
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
             "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
             "Origin": "https://sports4free.ru",
             "Referer": "https://sports4free.ru/",
+            "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": '"Windows"',
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-origin",
-            "Priority": "u=4"
+            "Priority": "u=1",
         })
-        
-        self.channels_url = "https://sports4free.ru/channel-api/channels"
+
         self.groups_url = "https://sports4free.ru/channel-api/groups"
-        self.web_base = "https://cdn-bubbles.xyz/hls"
-        
+        self.channels_url = "https://sports4free.ru/channel-api/channels"
+        self.cdn_base = "https://cdn-bubbles.xyz/hls"
+
         self.output_dir = "s4f"
         os.makedirs(self.output_dir, exist_ok=True)
 
+    def fetch_with_retry(self, url: str, max_retries: int = 4) -> requests.Response:
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"Fetching {url} (attempt {attempt}/{max_retries})")
+                resp = self.session.get(
+                    url,
+                    proxies=self.proxies,
+                    timeout=25,
+                )
+                resp.raise_for_status()
+                return resp
+            except Exception as e:
+                print(f"Request failed: {e}")
+                if attempt == max_retries:
+                    raise
+                time.sleep(random.uniform(3, 8))  # longer backoff
+        raise RuntimeError(f"Failed to fetch {url} after {max_retries} attempts")
+
     def run(self):
+        print("Starting scrape...")
+
         try:
-            print("Fetching groups...")
-            groups_resp = self.scraper.get(self.groups_url)
-            groups_resp.raise_for_status() # Check for 403/503 errors
+            # Groups first
+            groups_resp = self.fetch_with_retry(self.groups_url)
             groups_data = groups_resp.json()
-            group_map = {str(g['id']): g['name'] for g in groups_data if 'id' in g}
-            
-            # Delay to mimic human browsing speed
-            time.sleep(2.5) 
+            group_map = {str(g.get("id", "")): str(g.get("name", "UNKNOWN")).strip().upper()
+                         for g in groups_data if g.get("id")}
 
-            print("Fetching channels...")
-            channels_resp = self.scraper.get(self.channels_url)
-            channels_resp.raise_for_status()
-            channels_res = channels_resp.json()
+            time.sleep(random.uniform(2.0, 5.0))
 
-            if not isinstance(channels_res, list):
-                print("Error: API response is not a list.")
-                return
+            # Channels
+            channels_resp = self.fetch_with_retry(self.channels_url)
+            channels = channels_resp.json()
+
+            if not isinstance(channels, list):
+                raise ValueError("Channels response is not a list")
 
         except Exception as e:
-            # This captures the Cloudflare block without crashing the whole process
-            print(f"FAILED to bypass Cloudflare: {e}")
-            if 'resp' in locals():
-                print(f"Response snippet: {groups_resp.text[:200]}")
-            return
+            print(f"SCRAPE FAILED: {e}")
+            if 'groups_resp' in locals():
+                print("Groups response preview:", groups_resp.text[:400])
+            if 'channels_resp' in locals():
+                print("Channels response preview:", channels_resp.text[:400])
+            return False
 
-        # Sort channels alphabetically
-        channels_res.sort(key=lambda x: str(x.get('name', '')).lower() if isinstance(x, dict) else "")
+        # Sort channels by name
+        channels.sort(key=lambda x: str(x.get("name", "")).lower())
 
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
         m3u_header = f'#EXTM3U x-tvg-url="https://raw.githubusercontent.com/BuddyChewChew/sports/main/s4f/s4f_epg.xml" m3u-updated="{timestamp}"'
-        
+
         m3u_full = [m3u_header]
-        m3u_us_only = [m3u_header]
-        root = ET.Element("tv")
+        m3u_us = [m3u_header]
+        epg_root = ET.Element("tv")
 
-        for ch in channels_res:
-            if not isinstance(ch, dict): continue
-            
-            name = str(ch.get('name', 'Unknown')).strip()
-            logo = str(ch.get('logo', '')).strip()
-            
-            # Map groupId to group name
-            g_id = str(ch.get('groupId', ''))
-            group_name = group_map.get(g_id, "OTHER").strip().upper()
-            
-            # Extract ID for the CDN URL
-            ch_id = str(ch.get('id', ''))
-            if not ch_id or ch_id == 'None':
+        processed = 0
+
+        for ch in channels:
+            if not isinstance(ch, dict):
                 continue
-            
-            stream_url = f"{self.web_base}?id={ch_id}"
-            
-            # Build M3U entry
-            entry = f'#EXTINF:-1 tvg-id="{ch_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{group_name}",{name}\n{stream_url}'
-            m3u_full.append(entry)
-            
-            if any(term in group_name for term in ["US|", "UNITED STATES"]) or "US|" in name:
-                m3u_us_only.append(entry)
 
-            # EPG XML Generation
-            channel_node = ET.SubElement(root, "channel", id=ch_id)
-            ET.SubElement(channel_node, "display-name").text = name
+            ch_id = str(ch.get("id", "")).strip()
+            if not ch_id:
+                continue
 
-        # Final File Writing
-        with open(os.path.join(self.output_dir, "s4f_playlist.m3u8"), "w", encoding="utf-8") as f:
+            name = str(ch.get("name", "Unknown")).strip()
+            logo = str(ch.get("logo", "")).strip()
+            group_id = str(ch.get("groupId", ""))
+            group_name = group_map.get(group_id, "OTHER")
+
+            stream_url = f"{self.cdn_base}?id={ch_id}"
+
+            extinf = (
+                f'#EXTINF:-1 tvg-id="{ch_id}" tvg-name="{name}" '
+                f'tvg-logo="{logo}" group-title="{group_name}",{name}\n'
+                f'{stream_url}'
+            )
+
+            m3u_full.append(extinf)
+
+            # US-only variant
+            if any(kw in group_name.upper() for kw in ["US|", "UNITED STATES", "USA"]) or "US|" in name.upper():
+                m3u_us.append(extinf)
+
+            # EPG entry
+            channel_el = ET.SubElement(epg_root, "channel", id=ch_id)
+            ET.SubElement(channel_el, "display-name").text = name
+
+            processed += 1
+
+        # Write files
+        with open(f"{self.output_dir}/s4f_playlist.m3u8", "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_full))
-        with open(os.path.join(self.output_dir, "s4f_us_only.m3u8"), "w", encoding="utf-8") as f:
-            f.write("\n".join(m3u_us_only))
-        with open(os.path.join(self.output_dir, "s4f_data.json"), "w", encoding="utf-8") as f:
-            json.dump(channels_res, f, indent=4)
-        
-        tree = ET.ElementTree(root)
-        tree.write(os.path.join(self.output_dir, "s4f_epg.xml"), encoding="utf-8", xml_declaration=True)
-        print(f"Success: Processed {len(m3u_full)-1} channels.")
+
+        with open(f"{self.output_dir}/s4f_us_only.m3u8", "w", encoding="utf-8") as f:
+            f.write("\n".join(m3u_us))
+
+        with open(f"{self.output_dir}/s4f_data.json", "w", encoding="utf-8") as f:
+            json.dump(channels, f, indent=2, ensure_ascii=False)
+
+        tree = ET.ElementTree(epg_root)
+        tree.write(f"{self.output_dir}/s4f_epg.xml", encoding="utf-8", xml_declaration=True)
+
+        print(f"Success → processed {processed} channels")
+        return True
+
 
 if __name__ == "__main__":
-    SportsScraper().run()
+    scraper = Sports4FreeScraper()
+    success = scraper.run()
+
+    if not success:
+        exit(1)
