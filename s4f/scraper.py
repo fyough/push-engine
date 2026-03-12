@@ -7,7 +7,7 @@ import cloudscraper
 
 class SportsScraper:
     def __init__(self):
-        # cloudscraper with a specific browser fingerprint to bypass Cloudflare
+        # cloudscraper uses a specialized request adapter to bypass Cloudflare
         self.scraper = cloudscraper.create_scraper(
             browser={
                 'browser': 'chrome',
@@ -15,12 +15,16 @@ class SportsScraper:
                 'desktop': True
             }
         )
-        # Adding headers to match a real browser request
+        # These headers mimic the browser request seen in your logs
         self.scraper.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept": "application/json",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Origin": "https://sports4free.ru",
             "Referer": "https://sports4free.ru/",
-            "Origin": "https://sports4free.ru"
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin"
         })
         
         self.channels_url = "https://sports4free.ru/channel-api/channels"
@@ -32,14 +36,16 @@ class SportsScraper:
 
     def run(self):
         try:
-            # 1. Fetch Groups to create a name lookup (e.g., "1" -> "US | SPORTS")
+            # 1. Fetch Groups (mapping ID to Name)
+            print("Fetching groups...")
             groups_res = self.scraper.get(self.groups_url).json()
             group_map = {str(g['id']): g['name'] for g in groups_res if 'id' in g}
             
-            # Small delay to look less like a bot
-            time.sleep(1.5) 
+            # Small delay to prevent rate-limiting/detection
+            time.sleep(2) 
 
             # 2. Fetch Channels
+            print("Fetching channels...")
             channels_res = self.scraper.get(self.channels_url).json()
 
             if not isinstance(channels_res, list):
@@ -47,7 +53,7 @@ class SportsScraper:
                 return
 
         except Exception as e:
-            # Logs the error (like the one in your job-logs.txt)
+            # This captures the "Expecting value" error if Cloudflare blocks the runner
             print(f"Error fetching data: {e}")
             return
 
@@ -67,22 +73,22 @@ class SportsScraper:
             name = str(ch.get('name', 'Unknown')).strip()
             logo = str(ch.get('logo', '')).strip()
             
-            # Use the groupId to get the actual category name
+            # Link groupId to the Name from groups.json
             g_id = str(ch.get('groupId', ''))
             group_name = group_map.get(g_id, "OTHER").strip().upper()
             
-            # The channel 'id' is used for the new cdn-bubbles URL
+            # Use the channel ID for the stream link
             ch_id = str(ch.get('id', ''))
             if not ch_id or ch_id == 'None':
                 continue
             
             stream_url = f"{self.web_base}?id={ch_id}"
             
-            # Build M3U Entry
+            # Create M3U Entry
             entry = f'#EXTINF:-1 tvg-id="{ch_id}" tvg-name="{name}" tvg-logo="{logo}" group-title="{group_name}",{name}\n{stream_url}'
             m3u_full.append(entry)
             
-            # Filter for US channels based on group name or channel name
+            # Filter for US channels
             if any(term in group_name for term in ["US|", "UNITED STATES"]) or "US|" in name:
                 m3u_us_only.append(entry)
 
@@ -90,7 +96,7 @@ class SportsScraper:
             channel_node = ET.SubElement(root, "channel", id=ch_id)
             ET.SubElement(channel_node, "display-name").text = name
 
-        # Save all updated files to the s4f directory
+        # Save all files to the s4f directory
         with open(os.path.join(self.output_dir, "s4f_playlist.m3u8"), "w", encoding="utf-8") as f:
             f.write("\n".join(m3u_full))
         with open(os.path.join(self.output_dir, "s4f_us_only.m3u8"), "w", encoding="utf-8") as f:
@@ -100,7 +106,7 @@ class SportsScraper:
         
         tree = ET.ElementTree(root)
         tree.write(os.path.join(self.output_dir, "s4f_epg.xml"), encoding="utf-8", xml_declaration=True)
-        print(f"Success: Processed {len(m3u_full)-1} channels using new API.")
+        print(f"Success: Processed {len(m3u_full)-1} channels.")
 
 if __name__ == "__main__":
     SportsScraper().run()
