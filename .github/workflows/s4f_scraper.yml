@@ -1,15 +1,13 @@
-name: "▶️ s4f Stream Scraper (Hourly)"
+name: Scrape sports4free.ru & Update Playlist
 
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+    - cron: '17 */4 * * *'      # every 4 hours (17 min past → avoid exact hour)
+  workflow_dispatch:            # allow manual trigger
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -17,30 +15,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Python 3.10
+      - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install cloudscraper zstandard
+          pip install curl_cffi zstandard
 
-      - name: Run s4f scraper
+      - name: Run scraper
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}          # ← add this secret!
         run: python s4f/scraper.py
 
-      - name: Commit and Push
+      - name: Configure git user
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
+      - name: Commit & push changes (if any)
+        run: |
           git add s4f/
-          
-          if ! git diff --cached --quiet; then
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
             git commit -m "s4f update: $(date -u +'%Y-%m-%d %H:%M UTC')"
             git pull --rebase origin main
             git push
-          else
-            echo "No changes detected."
           fi
+
+permissions:
+  contents: write
