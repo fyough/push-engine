@@ -14,6 +14,7 @@ on:
 jobs:
   scrape-and-deploy:
     runs-on: ubuntu-latest
+    
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -31,7 +32,7 @@ jobs:
         working-directory: m3u_task/sd1
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 pytz selenium webdriver-manager selenium-stealth
+          pip install requests beautifulsoup4 lxml pytz selenium webdriver-manager selenium-stealth
 
       - name: Generate EPG and Playlist
         working-directory: m3u_task/sd1
@@ -41,7 +42,6 @@ jobs:
           python py/videoxml.py > en/videoall.xml
           
           # Construct the M3U with the standard TiviMate compatible header
-          # We place the EPG URL directly into the #EXTM3U line
           {
             echo '#EXTM3U url-tvg="https://bitbucket.org/buddychewchew/live/raw/main/sd1/en/videoall.xml"'
             echo "# Last Updated: $(date '+%Y-%m-%d %H:%M:%S %Z')"
@@ -51,23 +51,44 @@ jobs:
         env:
           TZ: America/New_York
 
-      - name: Deploy to Bitbucket via SSH
+      - name: Deploy to Bitbucket via SSH (History Wipe Logic)
         env:
           BB_REPO: "buddychewchew/live.git"
         run: |
+          # 1. Setup SSH key
           mkdir -p ~/.ssh
-          echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.PUSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
-          export GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
           
-          git clone git@bitbucket.org:${{ env.BB_REPO }} repo_sync
+          # 2. Shallow Clone (only the latest state)
+          git clone --depth 1 git@bitbucket.org:${{ env.BB_REPO }} repo_sync
+          
+          # 3. Create the subdirectory and sync files
           mkdir -p repo_sync/sd1/en
           cp -r m3u_task/sd1/en/* repo_sync/sd1/en/
           
+          # 4. Wipe History and Force Push
           cd repo_sync
           git config user.name "PushEngine-Bot"
           git config user.email "engine@push-engine.local"
+          
           git add .
-          git commit -m "✅ SD1 Token Refresh: $(date +'%Y-%m-%d %H:%M')" || echo "No changes"
-          git push origin main
+          
+          # Only proceed if there are changes
+          if ! git diff --cached --quiet; then
+            # Create a fresh branch with no history
+            git checkout --orphan latest_branch
+            git add -A
+            git commit -m "✅ SD1 Token Refresh: $(date +'%Y-%m-%d %H:%M')"
+            
+            # Delete local main and rename current branch to main
+            git branch -D main || true
+            git branch -m main
+            
+            # FORCE PUSH: Overwrites Bitbucket history with this single commit
+            git push -f origin main
+            echo "Deployment successful: History wiped and single commit pushed."
+          else
+            echo "No changes detected. Skipping push."
+          fi
